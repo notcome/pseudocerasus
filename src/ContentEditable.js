@@ -26,6 +26,21 @@ function getNodeFromPath(root, path) {
   return node
 }
 
+function readStaticRange(host, range) {
+  const start = {
+    node: range.startContainer,
+    path: computeNodePath(host, range.startContainer),
+    offset: range.startOffset
+  }
+  const end = {
+    node: range.endContainer,
+    path: computeNodePath(host, range.endContainer),
+    offset: range.endOffset
+  }
+
+  return [start, end]
+}
+
 function detectBrowser() {
   const ua = navigator.userAgent.toLowerCase()
   if (ua.indexOf('safari') === -1) {
@@ -59,7 +74,6 @@ class ContentEditable extends Component {
       return
     }
 
-    host.addEventListener('keypress', this.onKeyPress)
     host.addEventListener('compositionstart', this.onCompositionStart)
     host.addEventListener('compositionend', this.onCompositionEnd)
     host.addEventListener('beforeinput', this.onBeforeInput)
@@ -106,17 +120,6 @@ class ContentEditable extends Component {
     if (this.props.hasOwnProperty(name)) {
       this.props[name].apply(null, args)
     }
-  }
-
-  onKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      return
-    }
-
-    event.preventDefault()
-
-    const caret = this.currentCaret
-    this.call('onInsertText', [caret, event.key, this.prepareFixingCaret])
   }
 
   attachMutationObserver() {
@@ -173,21 +176,31 @@ class ContentEditable extends Component {
     event.preventDefault()
 
     switch (event.inputType) {
+      case 'insertText': {
+        const [start, end] = readStaticRange(this.hostRef.current,
+                                             event.getTargetRanges()[0])
+        console.assert(start.node === end.node &&
+                       start.offset === end.offset,
+                       'We only support insertion with collapsed caret.')
+
+        if (event.cancelable) {
+          this.call('onInsertText',
+            [start, event.data, this.prepareFixingCaret])
+        } else {
+          this.attachMutationObserver()
+          this.pendingCallback = {
+            name: 'onInsertText',
+            args: [start, event.data, this.prepareFixingCaret]
+          }
+        }
+        return
+      }
+
       case 'deleteContent':
       case 'deleteContentBackward':
       case 'deleteContentForward': {
-        const range = event.getTargetRanges()[0]
-        const start = {
-          node: range.startContainer,
-          path: computeNodePath(this.hostRef.current, range.startContainer),
-          offset: range.startOffset
-        }
-        const end = {
-          node: range.endContainer,
-          path: computeNodePath(this.hostRef.current, range.endContainer),
-          offset: range.endOffset
-        }
-
+        const [start, end] = readStaticRange(this.hostRef.current,
+                                             event.getTargetRanges()[0])
         if (event.cancelable) {
           this.call('onDeleteContent', [start, end, this.prepareFixingCaret])
         } else {
@@ -217,6 +230,7 @@ class ContentEditable extends Component {
 
   onInput = (event) => {
     switch (event.inputType) {
+      case 'insertText':
       case 'deleteContent':
       case 'deleteContentBackward':
       case 'deleteContentForward': {
