@@ -144,15 +144,21 @@ class ContentEditable extends Component {
     this.detachMutationObserver()
 
     for (const record of records) {
-      const { oldValue } = record
-      const newValue = record.target.nodeValue
-      if (oldValue === newValue) {
-        continue
+      if (record.type === 'characterData') {
+        record.target.nodeValue = record.oldValue
       }
 
-      record.target.nodeValue = record.oldValue
+      if (record.type === 'childList') {
+        const addedNodes = Array.from(record.addedNodes)
+        for (const node of addedNodes) {
+          record.target.removeChild(node)
+        }
+        const removedNodes = Array.from(record.removedNodes)
+        for (const node of removedNodes) {
+          record.target.insertBefore(node, record.nextSibling)
+        }
+      }
     }
-    return null
   }
 
   callPendingCallback() {
