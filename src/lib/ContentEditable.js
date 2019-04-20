@@ -41,6 +41,42 @@ function readStaticRange(host, range) {
   return [start, end]
 }
 
+function readSelection(host, sel) {
+  const start = {
+    node: sel.anchorNode,
+    path: computeNodePath(host, sel.anchorNode),
+    offset: sel.anchorOffset
+  }
+  const end = {
+    node: sel.focusNode,
+    path: computeNodePath(host, sel.focusNode),
+    offset: sel.focusOffset
+  }
+
+  // For Safari at least, anchor and focus are not sorted.
+  return sortPoints(start, end)
+}
+
+function sortPoints(lhs, rhs) {
+  let i = 0;
+  while (i < lhs.path.length && i < rhs.path.length) {
+    if (lhs.path[i] < rhs.path[i]) {
+      return [lhs, rhs]
+    } else if (lhs.path[i] > rhs.path[i]) {
+      return [rhs, lhs]
+    }
+
+    i++
+  }
+
+  console.assert(lhs.path.length === rhs.path.length)
+
+  if (lhs.offset <= rhs.offset) {
+    return [lhs, rhs]
+  }
+  return [rhs, lhs]
+}
+
 function detectBrowser() {
   const ua = navigator.userAgent.toLowerCase()
   if (ua.indexOf('safari') === -1) {
@@ -80,22 +116,25 @@ class ContentEditable extends Component {
     host.addEventListener('input', this.onInput)
   }
 
-  get currentCaret() {
+  get currentSelection() {
     const host = this.hostRef.current
     if (document.activeElement !== host) {
       return null
     }
 
     const selection = document.getSelection()
-    console.assert(selection.isCollapsed)
-
-    const node = selection.anchorNode;
-    const path = computeNodePath(host, node)
-    const offset = selection.anchorOffset
-    return { node, path, offset }
+    return readSelection(host, selection)
   }
 
-  set currentCaret(caret) {
+  fixCaret() {
+    const caret = this.fixingCaret
+
+    if (!caret) {
+      return
+    } else {
+      this.fixingCaret = null
+    }
+
     const node = caret.node || getNodeFromPath(this.hostRef.current, caret.path)
     const { offset } = caret
 
@@ -108,10 +147,7 @@ class ContentEditable extends Component {
   }
 
   componentDidUpdate() {
-    if (this.fixingCaret) {
-      this.currentCaret = this.fixingCaret
-      this.fixingCaret = null
-    }
+    this.fixCaret()
   }
 
   prepareFixingCaret = (caret) => { this.fixingCaret = caret }
@@ -179,18 +215,15 @@ class ContentEditable extends Component {
       case 'insertText': {
         const [start, end] = readStaticRange(this.hostRef.current,
                                              event.getTargetRanges()[0])
-        console.assert(start.node === end.node &&
-                       start.offset === end.offset,
-                       'We only support insertion with collapsed caret.')
 
         if (event.cancelable) {
           this.call('onInsertText',
-            [start, event.data, this.prepareFixingCaret])
+            [start, end, event.data, this.prepareFixingCaret])
         } else {
           this.attachMutationObserver()
           this.pendingCallback = {
             name: 'onInsertText',
-            args: [start, event.data, this.prepareFixingCaret]
+            args: [start, end, event.data, this.prepareFixingCaret]
           }
         }
         return
@@ -215,10 +248,12 @@ class ContentEditable extends Component {
 
       case 'insertFromComposition': {
         this.detachMutationObserver()
+        console.log(event)
 
-        const caret = this.savedCaret
-        this.call('onInsertText', [caret, event.data, this.prepareFixingCaret])
-        this.savedCaret = null
+        const [start, end] = this.savedSelection
+        this.call('onInsertText',
+          [start, end, event.data, this.prepareFixingCaret])
+        this.savedSelection = null
         return
       }
 
@@ -246,7 +281,7 @@ class ContentEditable extends Component {
   }
 
   onCompositionStart = (event) => {
-    this.savedCaret = this.currentCaret
+    this.savedSelection = this.currentSelection
     this.attachMutationObserver()
   }
 
@@ -256,9 +291,9 @@ class ContentEditable extends Component {
     }
 
     this.restoreDOM()
-    const caret = this.savedCaret
-    this.call('onInsertText', [caret, event.data, this.prepareFixingCaret])
-    this.savedCaret = null
+    const [start, end] = this.savedSelection
+    this.call('onInsertText', [start, end, event.data, this.prepareFixingCaret])
+    this.savedSelection = null
   }
 
   render() {
