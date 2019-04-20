@@ -1,6 +1,6 @@
 import React from 'react'
 import './App.css'
-import ContentEditable from './ContentEditable'
+import ContentEditable from './lib'
 
 function insertText(full, offset, input, setCaret) {
   const first = full.slice(0, offset)
