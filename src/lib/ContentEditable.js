@@ -1,4 +1,7 @@
-import React, { Component } from 'react';
+import React, { Component } from 'react'
+
+import { detectBrowser } from './utils'
+import EditObserver from './EditObserver'
 
 function computeNodePath(root, child) {
   let path = []
@@ -77,17 +80,6 @@ function sortPoints(lhs, rhs) {
   return [rhs, lhs]
 }
 
-function detectBrowser() {
-  const ua = navigator.userAgent.toLowerCase()
-  if (ua.indexOf('safari') === -1) {
-    return 'other'
-  }
-  if (ua.indexOf('chrome') > -1) {
-    return 'chrome'
-  }
-  return 'safari'
-}
-
 class ContentEditable extends Component {
   constructor(props) {
     super(props)
@@ -98,10 +90,7 @@ class ContentEditable extends Component {
     this.browserSupported = detectBrowser() !== 'other'
 
     this.hostRef = React.createRef()
-    this.observer = new MutationObserver(records => {
-      this.pendingRecords = this.pendingRecords.concat(records)
-    })
-    this.observeing = false
+    this.observer = new EditObserver()
   }
 
   componentDidMount() {
@@ -158,48 +147,6 @@ class ContentEditable extends Component {
     }
   }
 
-  attachMutationObserver() {
-    const host = this.hostRef.current
-    this.pendingRecords = []
-    this.observer.observe(host, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      characterDataOldValue: true
-    })
-    this.observeing = true
-  }
-
-  detachMutationObserver() {
-    this.observer.disconnect()
-    this.observeing = false
-  }
-
-  restoreDOM() {
-    const records = this.pendingRecords.concat(this.observer.takeRecords())
-    records.reverse()
-
-    this.pendingRecords = null
-    this.detachMutationObserver()
-
-    for (const record of records) {
-      if (record.type === 'characterData') {
-        record.target.nodeValue = record.oldValue
-      }
-
-      if (record.type === 'childList') {
-        const addedNodes = Array.from(record.addedNodes)
-        for (const node of addedNodes) {
-          record.target.removeChild(node)
-        }
-        const removedNodes = Array.from(record.removedNodes)
-        for (const node of removedNodes) {
-          record.target.insertBefore(node, record.nextSibling)
-        }
-      }
-    }
-  }
-
   callPendingCallback() {
     if (!this.pendingCallback) {
       return
@@ -220,7 +167,7 @@ class ContentEditable extends Component {
           this.call('onInsertText',
             [start, end, event.data, this.prepareFixingCaret])
         } else {
-          this.attachMutationObserver()
+          this.observer.attach(this.hostRef.current)
           this.pendingCallback = {
             name: 'onInsertText',
             args: [start, end, event.data, this.prepareFixingCaret]
@@ -237,7 +184,7 @@ class ContentEditable extends Component {
         if (event.cancelable) {
           this.call('onDeleteContent', [start, end, this.prepareFixingCaret])
         } else {
-          this.attachMutationObserver()
+          this.observer.attach(this.hostRef.current)
           this.pendingCallback = {
             name: 'onDeleteContent',
             args: [start, end, this.prepareFixingCaret]
@@ -247,7 +194,7 @@ class ContentEditable extends Component {
       }
 
       case 'insertFromComposition': {
-        this.detachMutationObserver()
+        this.observer.detach()
         console.log(event)
 
         const [start, end] = this.savedSelection
@@ -269,7 +216,7 @@ class ContentEditable extends Component {
       case 'deleteContent':
       case 'deleteContentBackward':
       case 'deleteContentForward': {
-        this.restoreDOM()
+        this.observer.restore()
         this.callPendingCallback()
         return
       }
@@ -282,15 +229,15 @@ class ContentEditable extends Component {
 
   onCompositionStart = (event) => {
     this.savedSelection = this.currentSelection
-    this.attachMutationObserver()
+    this.observer.attach(this.hostRef.current)
   }
 
   onCompositionEnd = (event) => {
-    if (!this.observeing) {
+    if (!this.observing) {
       return
     }
 
-    this.restoreDOM()
+    this.observer.restore()
     const [start, end] = this.savedSelection
     this.call('onInsertText', [start, end, event.data, this.prepareFixingCaret])
     this.savedSelection = null

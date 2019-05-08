@@ -14,7 +14,10 @@
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/index.js",
-  "files": [ "dist", "README.md" ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "start": "react-scripts start",
     "test": "react-scripts test",
@@ -34,6 +37,14 @@
     "@babel/cli": "^7.4.3",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
-    "react-scripts": "2.1.8"
+    "react-scripts": "2.1.8",
+    "selenium-webdriver": "^4.0.0-alpha.1"
+  },
+  "dependencies": {
+    "@types/jest": "^24.0.12",
+    "@types/node": "^11.13.8",
+    "@types/react": "^16.8.15",
+    "@types/react-dom": "^16.8.4",
+    "typescript": "^3.4.5"
   }
 }
