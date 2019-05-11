@@ -1,13 +1,12 @@
+import InlineRange from './InlineRange'
+
 export default class EditObserver {
-  readonly observer: MutationObserver
-  
-  pendingRecords: Array<MutationRecord>
-  observing: boolean
+  private readonly observer: MutationObserver
+  private pendingRecords: Array<MutationRecord> = []
+  private savedRange: InlineRange | null = null
+  observing: boolean = false
 
   constructor() {
-    this.pendingRecords = []
-    this.observing = false
-
     this.observer = new MutationObserver(records => {
       this.pendingRecords = this.pendingRecords.concat(records)
     })
@@ -21,6 +20,11 @@ export default class EditObserver {
       characterDataOldValue: true
     })
 
+    const selection = document.getSelection()
+    if (!selection) {
+      throw new Error('Method getSelection() returns null.')
+    }
+    this.savedRange = InlineRange.fromSelection(el, selection)
     this.observing = true
   }
 
@@ -52,5 +56,10 @@ export default class EditObserver {
         }
       }
     }
+
+    const range = this.savedRange as InlineRange
+    this.savedRange = null
+    range.selectRange()
+    return range
   }
 }

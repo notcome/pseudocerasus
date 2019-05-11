@@ -7,6 +7,7 @@ import EditObserver from './EditObserver'
 interface InputEventData {
   readonly inputType: string
   readonly data?: string
+  readonly isComposing?: boolean
   getTargetRanges: () => Array<StaticRange>
 }
 
@@ -21,6 +22,17 @@ type Props = {
     , callback: FixingRangeCallback) => void
   onDeleteContent: (range: InlineRange
     , callback: FixingRangeCallback) => void
+  onInsertParagraph?: (range: InlineRange
+    , callback: FixingRangeCallback) => void
+}
+
+function isComposing(event: InputEvent): boolean {
+  if (event.isComposing !== undefined) {
+    return event.isComposing
+  }
+
+  const inputType = new String(event.inputType).toLowerCase()
+  return inputType.search('composition') !== -1
 }
 
 export default class ContentEditable extends Component<Props> {
@@ -34,7 +46,6 @@ export default class ContentEditable extends Component<Props> {
   private pendingCallbacks = [] as Array<() => void>
 
   private getFixingRange = null as (() => InlineRange) | null
-  private savedRange = null as InlineRange | null
 
   get host() {
     const host = this.hostRef.current
@@ -68,15 +79,11 @@ export default class ContentEditable extends Component<Props> {
     }
   }
 
-  onInsertionOrDeletion = (event: InputEvent) => {
-    const staticRange = event.getTargetRanges()[0]
-    const inlineRange = InlineRange.fromStaticRange(this.host, staticRange)
-
+  onInsertionOrDeletion = (event: InputEvent, range: InlineRange) => {
+    const callback = this.setGetFixingRange
     const action = event.inputType === 'insertText' ?
-      () => this.props.onInsertText(inlineRange,
-          event.data as string, this.setGetFixingRange):
-      () => this.props.onDeleteContent(inlineRange,
-          this.setGetFixingRange)
+      () => this.props.onInsertText(range, event.data as string, callback) :
+      () => this.props.onDeleteContent(range, callback)
 
     if (event.cancelable) {
       action()
@@ -87,28 +94,42 @@ export default class ContentEditable extends Component<Props> {
   }
 
   onBeforeInput = (event: InputEvent) => {
+    if (isComposing(event)) {
+      return
+    }
     event.preventDefault()
+
+    const staticRange = event.getTargetRanges()[0]
+    const range = InlineRange.fromStaticRange(this.host, staticRange)
 
     switch (event.inputType) {
       case 'insertText':
       case 'deleteContent':
       case 'deleteContentBackward':
       case 'deleteContentForward':
-        this.onInsertionOrDeletion(event)
-        return
-
-      case 'insertFromComposition':
-        this.onInsertFromComposition(event)
-        return
-
-      case 'insertCompositionText':
+        this.onInsertionOrDeletion(event, range)
         return
 
       default:
-        if (!event.cancelable && !this.observer.observing) {
-          this.observer.attach(this.host)
-        }
-        return
+        break
+    }
+
+    const action = () => {
+      switch (event.inputType) {
+        case 'insertParagraph':
+          if (this.props.onInsertParagraph) {
+            return this.props.onInsertParagraph(range, this.setGetFixingRange)
+          }
+
+        default:
+          return
+      }
+    }
+    if (event.cancelable) {
+      action()
+    } else {
+      this.observer.attach(this.host)
+      this.pendingCallbacks.push(action)
     }
   }
 
@@ -117,53 +138,23 @@ export default class ContentEditable extends Component<Props> {
       return
     }
 
-    switch (event.inputType) {
-      case 'insertText':
-      case 'insertParagraph':
-      case 'deleteContent':
-      case 'deleteContentBackward':
-      case 'deleteContentForward': {
-        this.observer.restore()
-        for (const callback of this.pendingCallbacks) {
-          callback()
-        }
-        this.pendingCallbacks = []
-        return
-      }
-
-      default: {
-        return
-      }
-    }
-  }
-
-  onCompositionStart = (event: CompositionEvent) => {
-    const host = this.host
-
-    const selection = document.getSelection()
-    if (!selection) {
-      throw new Error('Method getSelection() returns null.')
-    }
-    this.savedRange = InlineRange.fromSelection(this.host, selection)
-    this.observer.attach(host)
-  }
-
-  onInsertFromComposition = (event: InputEvent) => {
-    this.observer.detach()
-    const range = this.savedRange
-    this.savedRange = null
-    this.props.onInsertText(range as InlineRange,
-      event.data as string, this.setGetFixingRange)
-  }
-
-  onCompositionEnd = (event: CompositionEvent) => {
-    if (!this.observer.observing) {
+    if (isComposing(event)) {
       return
     }
 
     this.observer.restore()
-    const range = this.savedRange
-    this.savedRange = null
+    for (const callback of this.pendingCallbacks) {
+      callback()
+    }
+    this.pendingCallbacks = []
+  }
+
+  onCompositionStart = (event: CompositionEvent) => {
+    this.observer.attach(this.host)
+  }
+
+  onCompositionEnd = (event: CompositionEvent) => {
+    const range = this.observer.restore()
     this.props.onInsertText(range as InlineRange,
       event.data as string, this.setGetFixingRange)
   }

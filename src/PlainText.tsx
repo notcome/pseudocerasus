@@ -50,6 +50,8 @@ function makeGetFixingRange(host: any, offset: number | undefined) {
   }
 }
 
+const noOp = () => { return }
+
 export default function PlainText(props: Props) {
   const [text, setText] = React.useState(props.initialValue)
 
@@ -73,7 +75,8 @@ export default function PlainText(props: Props) {
     <div id={'app'}>
       <ContentEditable tag={'p'}
         onInsertText={onInsertText}
-        onDeleteContent={onDeleteContent}>
+        onDeleteContent={onDeleteContent}
+        onInsertParagraph={noOp}>
         {text}
       </ContentEditable>
     </div>
