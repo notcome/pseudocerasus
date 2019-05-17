@@ -13,17 +13,12 @@ interface InputEventData {
 
 type InputEvent = Event & InputEventData
 
-type FixingRangeCallback = (thunk: () => InlineRange) => void
-
 type Props = {
   tag: string,
 
-  onInsertText: (range: InlineRange, data: string
-    , callback: FixingRangeCallback) => void
-  onDeleteContent: (range: InlineRange
-    , callback: FixingRangeCallback) => void
-  onInsertParagraph?: (range: InlineRange
-    , callback: FixingRangeCallback) => void
+  onInsertText: (range: InlineRange, data: string) => void
+  onDeleteContent: (range: InlineRange) => void
+  onInsertParagraph?: (range: InlineRange) => void
 }
 
 function isComposing(event: InputEvent): boolean {
@@ -45,18 +40,12 @@ export default class ContentEditable extends Component<Props> {
 
   private pendingCallbacks = [] as Array<() => void>
 
-  private getFixingRange = null as (() => InlineRange) | null
-
   get host() {
     const host = this.hostRef.current
     if (!host) {
       throw new Error('Element ref is not initialized.')
     }
     return host
-  }
-
-  setGetFixingRange = (thunk: () => InlineRange) => {
-    this.getFixingRange = thunk
   }
 
   componentDidMount() {
@@ -71,19 +60,10 @@ export default class ContentEditable extends Component<Props> {
       this.onInput as EventListener)
   }
 
-  componentDidUpdate() {
-    if (this.getFixingRange) {
-      const range = this.getFixingRange()
-      range.selectRange()
-      this.getFixingRange = null
-    }
-  }
-
   onInsertionOrDeletion = (event: InputEvent, range: InlineRange) => {
-    const callback = this.setGetFixingRange
     const action = event.inputType === 'insertText' ?
-      () => this.props.onInsertText(range, event.data as string, callback) :
-      () => this.props.onDeleteContent(range, callback)
+      () => this.props.onInsertText(range, event.data as string) :
+      () => this.props.onDeleteContent(range)
 
     if (event.cancelable) {
       action()
@@ -118,7 +98,7 @@ export default class ContentEditable extends Component<Props> {
       switch (event.inputType) {
         case 'insertParagraph':
           if (this.props.onInsertParagraph) {
-            return this.props.onInsertParagraph(range, this.setGetFixingRange)
+            return this.props.onInsertParagraph(range)
           }
 
         default:
@@ -155,8 +135,7 @@ export default class ContentEditable extends Component<Props> {
 
   onCompositionEnd = (event: CompositionEvent) => {
     const range = this.observer.restore()
-    this.props.onInsertText(range as InlineRange,
-      event.data as string, this.setGetFixingRange)
+    this.props.onInsertText(range as InlineRange, event.data as string)
   }
 
   render() {
