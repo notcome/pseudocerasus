@@ -35,7 +35,9 @@ export default class SelectionHost extends Component<Props> {
   }
 
   render() {
-    return <div ref={this.hostRef}>{this.props.children}</div>
+    return React.createElement('div', {
+      ref: this.hostRef,
+    }, this.props.children)
   }
 
   componentDidMount() {
