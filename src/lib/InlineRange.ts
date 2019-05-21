@@ -57,6 +57,21 @@ export type Point = {
   path: Array<number>
   node: Node
   offset: number
+  codePointOffset: number
+}
+
+function computeCodePointOffset(node: Node, offset: number): number {
+  if (offset === 0) {
+    return 0
+  }
+
+  const text = (node as Text).wholeText
+  text.slice(0, offset)
+  let codePointOffset = 0
+  for (const c of text) {
+    codePointOffset++
+  }
+  return codePointOffset
 }
 
 export default class InlineRange {
@@ -90,36 +105,43 @@ export default class InlineRange {
     })
   }
 
-  static fromPaths(host: Host,
-                   path1: Array<number>, offset1: number,
-                   path2: Array<number>, offset2: number) {
+  static fromDict(dict: {
+    host: Host,
+    node1: Node, path1: Array<number>, offset1: number,
+    node2: Node, path2: Array<number>, offset2: number,
+  }) {
+    const { host, node1, path1, offset1, node2, path2, offset2 } = dict
     const start = {
       path: path1,
+      node: node1,
       offset: offset1,
-      node: childFromPath(host, path1)
+      codePointOffset: computeCodePointOffset(node1, offset1),
     }
     const end = {
       path: path2,
+      node: node2,
       offset: offset2,
-      node: childFromPath(host, path2)
+      codePointOffset: computeCodePointOffset(node2, offset2),
     }
     return new InlineRange(host, start, end)
+  }
+
+  static fromPaths(host: Host,
+                   path1: Array<number>, offset1: number,
+                   path2: Array<number>, offset2: number) {
+    const node1 = childFromPath(host, path1)
+    const node2 = childFromPath(host, path2)
+    return InlineRange.fromDict(
+      { host, node1, path1, offset1, node2, path2, offset2 })
   }
 
   static fromNodes(host: Host,
                    node1: Node, offset1: number,
                    node2: Node, offset2: number) {
-    const start = {
-      node: node1,
-      offset: offset1,
-      path: pathFromChild(host, node1)
-    }
-    const end = {
-      node: node2,
-      offset: offset2,
-      path: pathFromChild(host, node2)
-    }
-    return new InlineRange(host, start, end)
+    const path1 = pathFromChild(host, node1)
+    const path2 = pathFromChild(host, node2)
+    return InlineRange.fromDict(
+      { host, node1, path1, offset1, node2, path2, offset2 })
   }
 
   static fromStaticRange(host: Host, range: StaticRange): InlineRange {
