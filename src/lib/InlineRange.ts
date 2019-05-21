@@ -66,9 +66,9 @@ function computeCodePointOffset(node: Node, offset: number): number {
   }
 
   const text = (node as Text).wholeText
-  text.slice(0, offset)
+  const partial = text.slice(0, offset)
   let codePointOffset = 0
-  for (const c of text) {
+  for (const c of partial) {
     codePointOffset++
   }
   return codePointOffset
