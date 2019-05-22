@@ -25,6 +25,7 @@ function equalRange(lhs: InlineRange, rhs: InlineRange) {
 
 export default class SelectionHost extends Component<Props> {
   private hostRef = React.createRef<HTMLDivElement>()
+  private composing = false
 
   get host() {
     const host = this.hostRef.current
@@ -50,11 +51,22 @@ export default class SelectionHost extends Component<Props> {
     }
 
     document.addEventListener('selectionchange', _ => {
+      if (this.composing) {
+        return
+      }
+
       const sel = window.getSelection()
       if (!sel) {
         throw new Error('Cannot get selection.')
       }
       this.handleSelectionChange(sel)
+    })
+
+    document.addEventListener('compositionstart', _ => {
+      this.composing = true
+    })
+    document.addEventListener('compositionend', _ => {
+      this.composing = false
     })
   }
 

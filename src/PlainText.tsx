@@ -86,16 +86,16 @@ export default function PlainText(props: Props) {
     (range: InlineRange, input: string) => {
       const { text: text_, offset } = withTextInserted(text,
         range.start.offset, range.end.offset, input)
-      setRange([offset, offset])
       setText(text_)
+      setRange([offset, offset])
     }, [text])
 
   const onDeleteContent = React.useCallback(
     (range: InlineRange) => {
       const { text: text_, offset } = withTextDeleted(text,
         range.start.offset, range.end.offset)
-      setRange([offset, offset])
       setText(text_)
+      setRange([offset, offset])
     }, [text])
 
   const caretText = range ?
