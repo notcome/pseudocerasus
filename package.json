@@ -1,6 +1,6 @@
 {
   "name": "pseudocerasus",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description:": "Make contenteditable with React easier.",
   "author": {
     "name": "Liu, Minsheng",
