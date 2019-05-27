@@ -15,6 +15,7 @@ type InputEvent = Event & InputEventData
 
 type Props = {
   tag: string,
+  props: { [key: string]: string },
 
   onInsertText: (range: InlineRange, data: string) => void
   onDeleteContent: (range: InlineRange) => void
@@ -148,7 +149,8 @@ export default class ContentEditable extends Component<Props> {
     return React.createElement(tag || 'p', {
       contentEditable: true,
       suppressContentEditableWarning: true,
-      ref: this.hostRef
+      ref: this.hostRef,
+      ...this.props.props
     }, children)
   }
 }
